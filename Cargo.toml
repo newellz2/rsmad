@@ -1,0 +1,12 @@
+[package]
+name = "rsmad"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+bindgen = "*"
+
+[dependencies]
+byteorder = "1.5.0"
+thiserror = "1.0.61"
