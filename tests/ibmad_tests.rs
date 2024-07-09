@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod tests {
 
+    //cargo test --package rsmad --test ibmad_tests -- tests::ibmad_send_drmad_success --show-output
     #[test]
     fn ibmad_send_drmad_success() {
         rsmad::umad::umad_init();
@@ -16,15 +17,18 @@ mod tests {
         let ca_name = ca_names.first().unwrap();
 
         let ca = rsmad::umad::umad_get_ca(&ca_name).unwrap();
-        println!("Name: {}", ca.name().unwrap());
-        println!("Firmware: {}", ca.fw_ver().unwrap());
-        println!("NodeGuid: 0x{}", rsmad::umad::format_u64_little_endian(ca.node_guid()));
+        
+        println!("HCA Name: {}", ca.name().unwrap());
+        println!("HCA Firmware: {}", ca.fw_ver().unwrap());
+        println!("HCA NodeGuid: 0x{}", rsmad::umad::format_u64_little_endian(ca.node_guid()));
 
         let port = rsmad::ibmad::mad_rpc_open_port(&ca_name, &mgmt_classes).unwrap();
 
-        let ni = rsmad::ibmad::send_dr_node_info_mad(port, "0,1,1,1,45", 200);
+        let ni = rsmad::ibmad::send_dr_node_info_mad(port, "0,1,1,1,45", 200).unwrap();
 
-        println!("{:?}", ni.unwrap());
+        println!("NodeInfo GUID: 0x{:x}", ni.guid);
+
+        println!("{:?}", ni);
 
         rsmad::umad::umad_done();
     }
