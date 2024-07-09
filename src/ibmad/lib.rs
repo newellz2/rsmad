@@ -1,10 +1,10 @@
-
 use std::{ffi::{c_void, CString, CStr}, mem::MaybeUninit};
 use thiserror::Error;
 
-use crate::{ibmad, umad};
+use crate::ibmad;
 
 use ibmad::sys::*;
+use ibmad::enums::*;
 
 #[derive(Error, Debug)]
 pub enum IBMadError {
@@ -12,19 +12,119 @@ pub enum IBMadError {
     OpenPortError,
 }
 
+#[derive(Error, Debug)]
+pub enum IBSmpError {
+    #[error("Unable to send MAD.")]
+    SendMADError,
+}
+
+
 pub struct IBMadPort {
     port: *mut ibmad::sys::ibmad_port,
 }
 
-pub fn mad_rpc_open_port(device_name: &str) -> Result<IBMadPort, IBMadError> {
+#[derive(Debug)]
+pub struct NodeInfo {
+    pub base_ver: u64,
+    pub class_vers: u64,
+    pub node_type: u64,
+    pub num_ports: u64,
+    pub system_guid: u64,
+    pub guid: u64,
+    pub port_guid: u64,
+    pub part_cap: u64,
+    pub dev_id: u64,
+    pub revision: u64,
+    pub local_port: u64,
+    pub vendor_id: u64,
+}
+
+impl NodeInfo {
+    pub fn from_mad_fields(data: &mut [u8]) -> Self {
+        let mut node_info = NodeInfo {
+            base_ver: 0,
+            class_vers: 0,
+            node_type: 0,
+            num_ports: 0,
+            system_guid: 0,
+            guid: 0,
+            port_guid: 0,
+            part_cap: 0,
+            dev_id: 0,
+            revision: 0,
+            local_port: 0,
+            vendor_id: 0,
+        };
+
+        for i in (MadFields::IBNodeBaseVer as i32)..=(MadFields::IBNodeVendorid_F as i32) {
+            let mut val: [u8; 8] = [0; 8];
+            let val_ptr = val.as_mut_ptr() as *mut c_void;
+
+            unsafe {
+                ibmad::sys::mad_decode_field(data.as_mut_ptr(), i.try_into().unwrap(), val_ptr as *mut c_void);
+            }
+
+            let result = u64::from_le_bytes(val); //Little Endian
+     
+            if i == MadFields::IBNodeBaseVer as i32 {
+                node_info.base_ver = result;
+            }
+
+            if i == MadFields::IBNodeClassVer_F as i32 {
+                node_info.class_vers = result;
+            }
+
+            if i == MadFields::IBNodeType_F as i32 {
+                node_info.node_type = result;
+            }
+
+            if i == MadFields::IBNodeNPorts_F as i32 {
+                node_info.num_ports = result;
+            }
+
+            if i == MadFields::IBNodeSytemGuid_F as i32 {
+                node_info.system_guid = result;
+            }
+
+            if i == MadFields::IBNodeGuid_F as i32 {
+                node_info.guid = result;
+            }
+
+            if i == MadFields::IBNodePortGuid_F as i32 {
+                node_info.port_guid = result;
+            }
+
+            if i == MadFields::IBNodePartitionCap_F as i32 {
+                node_info.part_cap = result;
+            }
+
+            if i == MadFields::IBNodeDevid_F as i32 {
+                node_info.dev_id = result;
+            }
+
+            if i == MadFields::IBNodeRevision_F as i32 {
+                node_info.revision = result;
+            }
+
+            if i == MadFields::IBNodeLocalPort_F as i32 {
+                node_info.local_port = result;
+            }
+
+            if i == MadFields::IBNodeVendorid_F as i32 {
+                node_info.vendor_id = result;
+            }
+        }
+
+        node_info
+    }
+}
+
+
+pub fn mad_rpc_open_port(device_name: &str, mgmt_classes: &[u32]) -> Result<IBMadPort, IBMadError> {
 
     let device_name_c_str = CString::new(device_name).unwrap();
-
-    let mgmt_classes =[ MAD_CLASSES_IB_SMI_DIRECT_CLASS, MAD_CLASSES_IB_SMI_CLASS, MAD_CLASSES_IB_SA_CLASS, MAD_CLASSES_IB_PERFORMANCE_CLASS ];
     let num_classes = mgmt_classes.len() as i32;
-
-    let dev_name_ptr: *mut i8 = device_name_c_str.as_ptr() as *mut i8;
-    
+    let dev_name_ptr: *mut i8 = device_name_c_str.as_ptr() as *mut i8;    
     let port:*mut  ibmad::sys::ibmad_port  = unsafe { ibmad::sys::mad_rpc_open_port(dev_name_ptr, 1, mgmt_classes.as_ptr() as *mut i32, num_classes) };
 
     Ok(IBMadPort{
@@ -33,7 +133,7 @@ pub fn mad_rpc_open_port(device_name: &str) -> Result<IBMadPort, IBMadError> {
 
 }
 
-pub fn send_dr_nodeinfo_mad(port: IBMadPort, path: &str, timeout: u32) {
+pub fn send_dr_node_info_mad(port: IBMadPort, path: &str, timeout: u32) -> Result<NodeInfo, IBSmpError> {
 
     let drpath = Box::new(ib_dr_path_t{
         cnt: 0,
@@ -47,9 +147,9 @@ pub fn send_dr_nodeinfo_mad(port: IBMadPort, path: &str, timeout: u32) {
         drpath: *drpath,
         grh_present: 0,
         gid: unsafe { MaybeUninit::<[u8; 16]>::zeroed().assume_init() },
-        qp: 100,
+        qp: 0,
         qkey: 0,
-        sl: 100,
+        sl: 0,
         pkey_idx: 0,
     });
 
@@ -62,7 +162,6 @@ pub fn send_dr_nodeinfo_mad(port: IBMadPort, path: &str, timeout: u32) {
     if r > 0 {
         let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
         portid.drpath = *drpath;
-        println!("str2drpath success: r={} cnt={} path={:?}", r, drpath.cnt, drpath.p);
     }
     
     let mut data: [u8; IB_SMP_DATA_SIZE as usize] = [0; IB_SMP_DATA_SIZE as usize];
@@ -72,22 +171,13 @@ pub fn send_dr_nodeinfo_mad(port: IBMadPort, path: &str, timeout: u32) {
 
     let r: *mut u8 = unsafe { smp_query_via(data_ptr, portid_ptr, ibmad::sys::SMI_ATTR_ID_IB_ATTR_NODE_INFO, 0, timeout, port.port) };
 
-    let portid: Box<ib_portid_t> = unsafe { Box::from_raw(portid_ptr) };
+    if r.is_null() {
+        return Err(IBSmpError::SendMADError);
+    }
 
-    //NodeType
-    let mut node_type =  Box::new(0 as i32);
-    let node_type_ptr = Box::into_raw(node_type);
+    let ni = NodeInfo::from_mad_fields(&mut data);
 
-    unsafe { ibmad::sys::mad_decode_field( data.as_mut_ptr() , ibmad::sys::MAD_FIELDS_IB_NODE_TYPE_F, node_type_ptr as *mut c_void) };
-
-    node_type = unsafe { Box::from_raw(node_type_ptr) };
-
-    //NodeGUID
-    let mut node_guid = 0u64;
-
-    unsafe { ibmad::sys::mad_decode_field( data.as_mut_ptr() , ibmad::sys::MAD_FIELDS_IB_NODE_GUID_F, &mut node_guid as *mut u64 as *mut c_void) };
-
-    println!("smp_query_via: r={:?} buf={:?} qp={} sl={} node_type={} node_guid={}", r, data, portid.qp, portid.sl, node_type, umad::format_u64_big_endian(node_guid));
+    Ok(ni)
 
 }
 
@@ -121,7 +211,6 @@ pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) {
     if r > 0 {
         let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
         portid.drpath = *drpath;
-        println!("str2drpath success: r={} cnt={} path={:?}", r, drpath.cnt, drpath.p);
     }
     
     let mut data: [u8; IB_SMP_DATA_SIZE as usize] = [0; IB_SMP_DATA_SIZE as usize];
@@ -134,27 +223,18 @@ pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) {
     let portid: Box<ib_portid_t> = unsafe { Box::from_raw(portid_ptr) };
 
     //NodeDesc
-    let mut node_desc_bytes = [0u8; 64+1];
-    let node_desc_ptr = data.as_mut_ptr() as *mut c_void;  
+    //let mut node_desc_bytes = [0u8; 64+1];
+    //let node_desc_ptr = data.as_mut_ptr() as *mut c_void;  
 
-    //unsafe { ibmad::sys::mad_decode_field( data.as_mut_ptr() , 0x11  , node_desc_ptr) };
     let null_terminator_index = data
-    .iter()
-    .position(|&byte| byte == 0)
-    .unwrap_or(data.len()); // Default to the end if no null found
+        .iter()
+        .position(|&byte| byte == 0)
+        .unwrap_or(data.len());
 
-    // Convert to CStr (only up to the null terminator)
     let node_desc_c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&data[..null_terminator_index + 1]) };
-
-
-    // Convert to CStr (only up to the null terminator)
-    let node_desc_data_c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&data[0..64]) };
-    let node_desc_bytes_c_str = unsafe { CStr::from_bytes_with_nul_unchecked(&node_desc_bytes[0..64]) };
-
 
     // Convert to Rust String and handle potential UTF-8 issues (although unlikely for ASCII)
     let node_desc_string = node_desc_c_str.to_string_lossy();
-
 
     println!("smp_query_via: r={:?} buf={:?} qp={} sl={} node_desc={:?}", r, data, portid.qp, portid.sl, node_desc_string);
 
@@ -163,7 +243,7 @@ pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) {
 
 pub fn perf_query(port: IBMadPort, lid: i32, portnum: i32, timeout: u32) {
 
-    let mut portid = Box::new(ib_portid_t{
+    let portid = Box::new(ib_portid_t{
         lid: lid,
         drpath: unsafe { MaybeUninit::<ib_dr_path_t>::zeroed().assume_init() },
         grh_present: 0,
