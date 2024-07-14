@@ -4,7 +4,7 @@ mod tests {
 
     //cargo test --package rsmad --test ibmad_tests -- tests::ibmad_send_drmad_success --show-output
     #[test]
-    fn ibmad_send_drmad_success() {
+    fn ibmad_send_dr_mad_success() {
         rsmad::umad::umad_init();
 
         let mgmt_classes = [ rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_DIRECT_CLASS, 
@@ -13,28 +13,23 @@ mod tests {
                             ];
 
         let ca_names = rsmad::umad::umad_list_devices().unwrap();
-
         let ca_name = ca_names.first().unwrap();
-
         let ca = rsmad::umad::umad_get_ca(&ca_name).unwrap();
-        
+
         println!("HCA Name: {}", ca.name().unwrap());
         println!("HCA Firmware: {}", ca.fw_ver().unwrap());
         println!("HCA NodeGuid: 0x{}", rsmad::umad::format_u64_little_endian(ca.node_guid()));
 
         let port = rsmad::ibmad::mad_rpc_open_port(&ca_name, &mgmt_classes).unwrap();
-
         let ni = rsmad::ibmad::send_dr_node_info_mad(port, "0,1,1,1,45", 200).unwrap();
-
         println!("NodeInfo GUID: 0x{:x}", ni.guid);
-
         println!("{:?}", ni);
 
         rsmad::umad::umad_done();
     }
 
     #[test]
-    fn ibmad_send_drmad_node_desc_success() {
+    fn ibmad_send_dr_mad_node_desc_success() {
         rsmad::umad::umad_init();
 
         let mgmt_classes = [ rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_DIRECT_CLASS, 
@@ -43,18 +38,33 @@ mod tests {
                             ];
 
         let ca_names = rsmad::umad::umad_list_devices().unwrap();
-
         let ca_name = ca_names.first().unwrap();
-
         let ca = rsmad::umad::umad_get_ca(&ca_name).unwrap();
+
         println!("Name: {}", ca.name().unwrap());
         println!("Firmware: {}", ca.fw_ver().unwrap());
         println!("NodeGuid: 0x{}", rsmad::umad::format_u64_little_endian(ca.node_guid()));
-
         let port = rsmad::ibmad::mad_rpc_open_port(&ca_name, &mgmt_classes).unwrap();
+        let r = rsmad::ibmad::send_dr_node_desc_mad(port, "0,1,1,1,45", 200);
+        println!("NodeDesc: {:?}", r.unwrap());
+        rsmad::umad::umad_done();
+    }
 
-        rsmad::ibmad::send_dr_node_desc_mad(port, "0,1,1,1,45", 200);
+    #[test]
+    fn ibmad_send_lid_node_info_mad_success() {
+        rsmad::umad::umad_init();
 
+        let mgmt_classes = [ 
+            rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_DIRECT_CLASS, 
+            rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_CLASS, 
+            rsmad::ibmad::sys::MAD_CLASSES_IB_SA_CLASS, 
+            ];
+
+        let ca_names = rsmad::umad::umad_list_devices().unwrap();
+        let ca_name = ca_names.first().unwrap();
+        let port = rsmad::ibmad::mad_rpc_open_port(&ca_name, &mgmt_classes).unwrap();
+        let r = rsmad::ibmad::send_lid_node_info_mad(&port, 132, 3000);
+        println!("LID-Routed NodeInfo: {:?}", r.unwrap());
         rsmad::umad::umad_done();
     }
 
@@ -67,13 +77,10 @@ mod tests {
                            ];
 
         let ca_names = rsmad::umad::umad_list_devices().unwrap();
-
         let ca_name = ca_names.first().unwrap();
-
         let port = rsmad::ibmad::mad_rpc_open_port(&ca_name, &mgmt_classes).unwrap();
-
-        rsmad::ibmad::perf_query(port, 132, 5, 3000);
-
+        let r = rsmad::ibmad::perf_query(&port, 520, 3, 3000);
+        println!("Extended Perf Counters: {:?}", r.unwrap());
         rsmad::umad::umad_done();
     }
 
@@ -89,14 +96,14 @@ mod tests {
         let ca_name = ca_names.first().unwrap().clone();
     
         let mut handles = vec![];
-        for _ in 0..100 {
+        for _ in 0..1 {
 
             let ca_name_clone = ca_name.clone();
             let mgmt_classes_clone = mgmt_classes.clone();
-    
             let handle = std::thread::spawn(move || {
                 let port = rsmad::ibmad::mad_rpc_open_port(&ca_name_clone, &mgmt_classes_clone).unwrap();
-                rsmad::ibmad::perf_query(port, 132, 5, 3000);
+                let r = rsmad::ibmad::perf_query(&port, 520, 3, 3000);
+                println!("Extended Perf Counters: {:?}", r.unwrap())
             });
     
             handles.push(handle);
@@ -105,7 +112,6 @@ mod tests {
         for handle in handles {
             handle.join().unwrap();
         }
-    
         rsmad::umad::umad_done();
     }
 }

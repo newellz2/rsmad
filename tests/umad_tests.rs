@@ -1,8 +1,6 @@
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::{ffi::{c_void, CStr, CString}, mem::MaybeUninit, ptr::null_mut};
 
     #[test]
     fn umad_init_done_success() {
