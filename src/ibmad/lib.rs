@@ -22,8 +22,11 @@ pub enum IBSmpError {
 
 
 pub struct IBMadPort {
-    port: *mut ibmad::sys::ibmad_port,
+    pub port: *mut ibmad::sys::ibmad_port,
 }
+
+unsafe impl Send for IBMadPort {}
+unsafe impl Sync for IBMadPort {}
 
 #[derive(Debug, Default)]
 pub struct NodeInfo {
@@ -122,7 +125,7 @@ pub fn mad_rpc_open_port(device_name: &str, mgmt_classes: &[u32]) -> Result<IBMa
 
 }
 
-pub fn send_dr_node_info_mad(port: IBMadPort, path: &str, timeout: u32) -> Result<NodeInfo, IBSmpError> {
+pub fn send_dr_node_info_mad(port: &IBMadPort, path: &str, timeout: u32) -> Result<NodeInfo, IBSmpError> {
 
     let drpath = Box::new(ib_dr_path_t{
         cnt: 0,
@@ -148,9 +151,12 @@ pub fn send_dr_node_info_mad(port: IBMadPort, path: &str, timeout: u32) -> Resul
 
     let r = unsafe { str2drpath(drpath_ptr, routepath.as_ptr() as *mut i8, 0xffff, 0xffff) };
 
+    let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
+
     if r > 0 {
-        let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
-        portid.drpath = *drpath;
+        portid.drpath = *drpath;        
+    } else {
+        return Err(IBSmpError::DRMADPathError);
     }
     
     let mut data: [u8; IB_SMP_DATA_SIZE as usize] = [0; IB_SMP_DATA_SIZE as usize];
@@ -159,6 +165,8 @@ pub fn send_dr_node_info_mad(port: IBMadPort, path: &str, timeout: u32) -> Resul
     let portid_ptr = Box::into_raw(portid);
 
     let r: *mut u8 = unsafe { smp_query_via(data_ptr, portid_ptr, ibmad::sys::SMI_ATTR_ID_IB_ATTR_NODE_INFO, 0, timeout, port.port) };
+
+    let _portid = unsafe { Box::from_raw(portid_ptr) };
 
     if r.is_null() {
         return Err(IBSmpError::SendMADError);
@@ -190,6 +198,8 @@ pub fn send_lid_node_info_mad(port:&IBMadPort, lid: i32, timeout: u32) -> Result
 
     let r: *mut u8 = unsafe { smp_query_via(data_ptr, portid_ptr, ibmad::sys::SMI_ATTR_ID_IB_ATTR_NODE_INFO, 0, timeout, port.port) };
 
+    let _portid = unsafe { Box::from_raw(portid_ptr) };
+
     if r.is_null() {
         return Err(IBSmpError::SendMADError);
     }
@@ -200,7 +210,7 @@ pub fn send_lid_node_info_mad(port:&IBMadPort, lid: i32, timeout: u32) -> Result
 
 }
 
-pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) -> Result<String, IBSmpError> {
+pub fn send_dr_node_desc_mad(port: &IBMadPort, path: &str, timeout: u32) -> Result<String, IBSmpError> {
 
     let drpath = Box::new(ib_dr_path_t{
         cnt: 0,
@@ -225,9 +235,10 @@ pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) -> Resul
 
     let r = unsafe { str2drpath(drpath_ptr, routepath.as_ptr() as *mut i8, 0xffff, 0xffff) };
 
+    let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
+
     if r > 0 {
-        let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
-        portid.drpath = *drpath;
+        portid.drpath = *drpath;        
     } else {
         return Err(IBSmpError::DRMADPathError);
     }
@@ -237,6 +248,8 @@ pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) -> Resul
     let portid_ptr = Box::into_raw(portid);
 
     let r: *mut u8 = unsafe { smp_query_via(data_ptr, portid_ptr, ibmad::sys::SMI_ATTR_ID_IB_ATTR_NODE_DESC  , 0, timeout, port.port) };
+
+    let _portid = unsafe { Box::from_raw(portid_ptr) };
 
     if r.is_null() {
         return Err(IBSmpError::SendMADError);
@@ -254,9 +267,80 @@ pub fn send_dr_node_desc_mad(port: IBMadPort, path: &str, timeout: u32) -> Resul
     )
 }
 
+pub fn dr_perf_query(port:&IBMadPort, path: &str, timeout: u32) -> Result<ibmad::perf::ExtPerfCounters, IBSmpError>{
+    let drpath = Box::new(ib_dr_path_t{
+        cnt: 0,
+        p: unsafe { MaybeUninit::<[u8; 64]>::zeroed().assume_init() },
+        drslid: 0xffff,
+        drdlid: 0xffff,
+    });
+
+    let mut portid = Box::new(ib_portid_t{
+        lid: 0,
+        drpath: *drpath,
+        grh_present: 0,
+        gid: unsafe { MaybeUninit::<[u8; 16]>::zeroed().assume_init() },
+        qp: 100,
+        qkey: 0,
+        sl: 100,
+        pkey_idx: 0,
+    });
+
+    let drpath_ptr = Box::into_raw(drpath);
+    let routepath =  CString::new(path).unwrap();
+
+    let r = unsafe { str2drpath(drpath_ptr, routepath.as_ptr() as *mut i8, 0xffff, 0xffff) };
+
+    let drpath:Box<ib_dr_path_t> = unsafe { Box::from_raw(drpath_ptr) };
+
+    if r > 0 {
+        portid.drpath = *drpath;        
+    } else {
+        return Err(IBSmpError::DRMADPathError);
+    }
+
+    let mut data: [u8; 1024 as usize] = [0; 1024];
+    let portid_ptr = Box::into_raw(portid);
+    let data_ptr = data.as_mut_ptr();
+    let r: *mut u8 = unsafe { 
+        pma_query_via(data_ptr as *mut c_void, portid_ptr, 0, timeout, GSI_ATTR_ID_IB_GSI_PORT_COUNTERS_EXT, port.port)
+    };
+    let _portid = unsafe { Box::from_raw(portid_ptr) };
+    if r.is_null() {
+        return Err(IBSmpError::SendMADError);
+    }
+    let perf_counter = ibmad::perf::ExtPerfCounters::from_mad_fields(&mut data);
+    Ok(perf_counter)
+}
 
 pub fn perf_query(port:&IBMadPort, lid: i32, portnum: i32, timeout: u32) -> Result<ibmad::perf::ExtPerfCounters, IBSmpError>{
+    let portid = Box::new(ib_portid_t{
+        lid: lid,
+        drpath: unsafe { MaybeUninit::<ib_dr_path_t>::zeroed().assume_init() },
+        grh_present: 0,
+        gid: unsafe { MaybeUninit::<[u8; 16]>::zeroed().assume_init() },
+        qp: 0,
+        qkey: 0,
+        sl: 0,
+        pkey_idx: 0,
+    });
+    let mut data: [u8; 1024 as usize] = [0; 1024];
+    let portid_ptr = Box::into_raw(portid);
+    let data_ptr = data.as_mut_ptr();
+    let r: *mut u8 = unsafe { 
+        pma_query_via(data_ptr as *mut c_void, portid_ptr, portnum, timeout, GSI_ATTR_ID_IB_GSI_PORT_COUNTERS_EXT, port.port)
+    };
+    let _portid = unsafe { Box::from_raw(portid_ptr) };
+    if r.is_null() {
+        return Err(IBSmpError::SendMADError);
+    }
+    let perf_counter = ibmad::perf::ExtPerfCounters::from_mad_fields(&mut data);
+    Ok(perf_counter)
+}
 
+
+//smp_set_via
+pub fn set_node_desc(port:&IBMadPort, lid: i32, timeout: u32) {
     let portid = Box::new(ib_portid_t{
         lid: lid,
         drpath: unsafe { MaybeUninit::<ib_dr_path_t>::zeroed().assume_init() },
@@ -268,21 +352,18 @@ pub fn perf_query(port:&IBMadPort, lid: i32, portnum: i32, timeout: u32) -> Resu
         pkey_idx: 0,
     });
 
+    let device_name_c_str = CString::new("Test123").unwrap();
     let portid_ptr = Box::into_raw(portid);
-    
-    let mut data: [u8; 1024 as usize] = [0; 1024];
-    let data_ptr = data.as_mut_ptr() as *mut c_void;  
+
+    unsafe { smp_mkey_set(port.port, 0x1) };
 
     let r: *mut u8 = unsafe { 
-        pma_query_via(data_ptr as *mut c_void, portid_ptr, portnum, timeout, GSI_ATTR_ID_IB_GSI_PORT_COUNTERS_EXT, port.port)
+        smp_set_via(device_name_c_str.as_bytes_with_nul().as_ptr() as *mut c_void, portid_ptr, SMI_ATTR_ID_IB_ATTR_NODE_DESC, 0, timeout , port.port)
     };
 
+    let _portid = unsafe { Box::from_raw(portid_ptr) };
     if r.is_null() {
-        return Err(IBSmpError::SendMADError);
+        println!("ERROR");
     }
-
-    let perf_counter = ibmad::perf::ExtPerfCounters::from_mad_fields(&mut data);
-
-    Ok(perf_counter)
 
 }

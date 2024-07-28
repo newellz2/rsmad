@@ -3,8 +3,11 @@ use std::path::PathBuf;
 
 fn main() {
     println!("cargo:rustc-link-search=/usr/lib/x86_64-linux-gnu");
-    println!("cargo:rustc-link-lib=ibumad");
-    println!("cargo:rustc-link-lib=ibmad");
+    println!("cargo:rustc-link-lib=static=ibumad");
+    println!("cargo:rustc-link-lib=static=ibmad");
+    println!("cargo:rustc-link-lib=static=ibnetdisc");
+    //println!("cargo:rustc-flags=-l static=ibumad -l static=ibmad");
+
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -29,5 +32,16 @@ fn main() {
     ibmad_bindings
         .write_to_file(out_path.join("ibmad_bindings.rs"))
         .expect("Couldn't write ibmad bindings!");
+
+    //IBNETDISC
+    let ibnetdisc_bindings = bindgen::Builder::default()
+        .header("src/ibnetdisc/wrapper.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .generate()
+        .expect("Unable to generate bindings");
+
+    ibnetdisc_bindings
+        .write_to_file(out_path.join("ibnetdisc_bindings.rs"))
+        .expect("Couldn't write ibnetdisc bindings!");
 
 }

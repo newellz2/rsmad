@@ -33,6 +33,14 @@ pub enum MadFields {
 	IBPcExtXmtMPkts_F = 202,
 	IBPcExtRcvMPkts_F = 203,
 
+	IBPcXmtDiscLast_F = 266,
+	IBPcRcvLocalPhyErr_F = 267,
+	IBPcRcvMalformedPktErr_F = 268,
+	IBPcRcvBufOvrErr_F = 269,
+	IBPcRcvDLIDMapErr_F = 270,
+	IBPcRcvVLMapErr_F = 271,
+	IBPcRcvLoopingErr_F = 272,
+
 	IBPcExtErrSym_F = 644, //Symbol Error
 	IBPcExtLinkRecovers_F = 645, //Recovers Error
 	IBPcExtLinkDowned_F = 646, //Downed Error
@@ -40,12 +48,12 @@ pub enum MadFields {
 	IBPcExtErrPhysRcv_F = 648, //Physical Receive Errors
 	IBPcExtErrSwitchRel_F = 649, //Switch Relay Errors
 	IBPcExtXmtDiscards_F = 650, //Discards
-	IBPcExtErrXmtConstr_F = 651,
-	IBPcExtErrRcvConstr_F = 652,
-	IBPcExtErrLocalInteg_F = 653,
-	IBPcExtErrExcessOvr_F = 654,
-	IBPcExtVL15Dropped = 655,
-	IBPcExtXmitWait_F = 656,
-	IBPcExtQP1Drop_F = 657,
+	IBPcExtErrXmtConstr_F = 651, //Xmit Constraint Errors
+	IBPcExtErrRcvConstr_F = 652, //Rcv Constraint Errors
+	IBPcExtErrLocalInteg_F = 653, //Local Integrity Errors
+	IBPcExtErrExcessOvr_F = 654, //ExcessOverrun
+	IBPcExtVL15Dropped = 655, //VL15Dropped
+	IBPcExtXmitWait_F = 656, //XmitWaits
+	IBPcExtQP1Drop_F = 657, //QP1 Drops
 }
 
