@@ -1,7 +1,7 @@
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Borrow, ffi::{c_void, CStr, CString}, mem::MaybeUninit, ptr, slice};
+    use std::{ffi::{c_void, CStr, CString}, mem::MaybeUninit, ptr, slice};
 
     #[test]
     fn unsafe_ffi_ibnd_discover_fabric_success() {
@@ -124,11 +124,11 @@ mod tests {
             println!("Switch: {}", s.node_desc);
             if let Some(ports) = &s.ports {
                 for po in ports.iter() {
-                    print!("\t[{:0>2}] {:x}", po.number, s.guid);
+                    print!("\t[{:0>2}] 0x{:x}", po.number, s.guid);
                     if let (Some(r_port), Some(r_node)) = (&po.remote_port, &po.remote_node) {
                         print!(" - [{:0>2}] LID:{} {} {:?}", r_port.number, r_port.base_lid, r_node.node_desc, r_node.node_type );
                     } else {
-                        print!(" - Down");
+                        print!(" - {} {}", po.logical_state, po.phys_state);
                     }
                     print!("\n");
                 }
@@ -136,6 +136,21 @@ mod tests {
 
         };
 
-        rsmad::umad::umad_init();
+        for c in fabric.cas.iter() {
+
+            print!("CA: 0x{:x} {} {}", c.guid, c.node_desc, c.smalid);
+            print!("\n");
+
+        };
+
+        for (r , k) in fabric.guids_lids.into_iter(){
+            println!("0x{:x} {}", r, k);
+        }
+
+        for (r , k) in fabric.lids_guids.into_iter(){
+            println!("0x{:x} {}", r, k);
+        }
+
+        rsmad::umad::umad_done();
     }
 }

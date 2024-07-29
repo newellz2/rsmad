@@ -1,5 +1,5 @@
-use std::{borrow::Borrow, error::Error, ffi::{c_void, CStr, CString, FromBytesUntilNulError}, fmt, mem::MaybeUninit, ptr, rc::{Rc, Weak}, slice};
-use crate::{ibmad, ibnetdisc, umad};
+use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, error::Error, ffi::{c_void, CStr, CString, FromBytesUntilNulError}, fmt, mem::MaybeUninit, ptr, rc::{Rc, Weak}, slice};
+use crate::{ibmad, ibnetdisc};
 
 use ibnetdisc::sys::*;
 
@@ -36,14 +36,15 @@ impl fmt::Display for FabricError {
 impl Error for FabricError {} 
 
 #[derive(Debug)]
-
 pub struct Fabric {
     pub switches: Vec<Node>,
     pub cas: Vec<Node>,
     pub routers: Vec<Node>,
+    pub guids_lids: HashMap<u64, u16>,
+    pub lids_guids: HashMap<u16, u64>
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Node {
     pub guid: u64,
     pub node_desc: String,
@@ -54,7 +55,7 @@ pub struct Node {
     pub vendor_id: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Port {
     pub number: i32,
     pub phys_state: u32,
@@ -65,6 +66,11 @@ pub struct Port {
     pub switch: Option<Weak<Node>>,
 }
 
+impl Node {
+    pub fn rc() -> Rc<Self>{
+        Rc::new(Node::default())
+    }
+}
 pub trait IBNode {
     fn set_node_desc(&mut self, node_desc_bytes: &[u8]) ->  Result<(), FromBytesUntilNulError>;
     fn node_desc(&self) ->  &str;
@@ -99,6 +105,8 @@ impl Fabric {
             cas: Vec::new(),
             switches: Vec::new(),
             routers: Vec::new(),
+            guids_lids: HashMap::new(),
+            lids_guids: HashMap::new(),
         }
     }
 
@@ -310,10 +318,56 @@ impl Fabric {
                 }
             }
 
-
             next = node.next;
         }
 
+        self.guids_lids = self.guids_lids();
+        self.lids_guids = self.lids_guids();
+
         Ok(())
+    }
+
+    fn guids_lids(&self) -> HashMap<u64, u16>{
+        let mut guid_lids: HashMap<u64, u16> = HashMap::new();
+
+        for s in self.switches.iter() {
+            guid_lids.insert(s.guid, s.smalid);
+
+            if let Some(ports) = &s.ports {
+                for po in ports.iter() {
+                    if let (Some(r_port), Some(r_node)) = (&po.remote_port, &po.remote_node) {
+                        if !guid_lids.contains_key(&r_node.guid){
+                            guid_lids.insert(r_node.guid, r_port.base_lid);
+                        }
+
+                    }
+                }
+            }
+
+        };
+        return guid_lids;
+    }
+
+    fn lids_guids(&self) -> HashMap<u16, u64>{
+        let mut lids_guids: HashMap<u16, u64> = HashMap::new();
+
+        for s in self.switches.iter() {
+            lids_guids.insert(s.smalid, s.guid);
+
+            if let Some(ports) = &s.ports {
+                for po in ports.iter() {
+                    if let (Some(r_port), Some(r_node)) = (&po.remote_port, &po.remote_node) {
+                        if r_port.base_lid != 65535 {
+                            if !lids_guids.contains_key(&r_port.base_lid){
+                                    lids_guids.insert(r_port.base_lid, r_node.guid);
+                            }
+                        }
+
+                    }
+                }
+            }
+
+        };
+        return lids_guids;
     }
 }
