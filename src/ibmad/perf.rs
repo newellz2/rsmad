@@ -1,3 +1,4 @@
+use std::ops::Sub;
 use super::enums::MadFields;
 use crate::ibmad;
 use std::{collections::HashMap, ffi::c_void};
@@ -86,5 +87,30 @@ impl ExtPerfCounters {
             writeln!(f, "{}: {}", name, value)?;
         }
         Ok(())
+    }
+}
+
+impl Sub for ExtPerfCounters {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self::Output {
+        let mut output = ExtPerfCounters {
+            counters: HashMap::new(),
+        };
+
+        // Iterate over self.counters, checking for corresponding values in other.counters
+        for (name, &value) in &self.counters {
+            let delta = if let Some(&other_value) = other.counters.get(name) {
+                value.saturating_sub(other_value)
+            } else {
+                value 
+            };
+
+
+            output.counters.insert(name.clone(), delta);
+            
+        }
+
+        output 
     }
 }

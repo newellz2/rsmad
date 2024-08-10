@@ -21,6 +21,7 @@ pub enum IBSmpError {
 }
 
 
+#[derive(Clone, Debug)]
 pub struct IBMadPort {
     pub port: *mut ibmad::sys::ibmad_port,
 }

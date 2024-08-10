@@ -1,14 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use core::borrow;
     use std::{
-        borrow::{Borrow, BorrowMut},
-        cell::RefCell,
-        ffi::{c_void, CStr, CString},
-        mem::MaybeUninit,
-        ptr,
-        rc::Rc,
-        slice,
+        cell::RefCell, ffi::{c_void, CStr, CString}, iter, mem::{take, MaybeUninit}, ptr, rc::Rc, slice
     };
 
     #[test]
@@ -134,8 +127,8 @@ mod tests {
     fn fabric_add_nodes_success() {
         rsmad::umad::umad_init();
 
-        let mut fabric = rsmad::ibnetdisc::Fabric::new();
-        let r = fabric.discover("mlx5_0");
+        let mut fabric = rsmad::ibnetdisc::fabric::Fabric::new("mlx5_0");
+        let r = fabric.discover();
         match r {
             Ok(_) => {
                 println!("Discovery completed successfully");
@@ -154,11 +147,11 @@ mod tests {
             println!("{:?}", switch_ref.node_desc);
             if let Some(port_ref) = &switch_ref.ports {
                 for p in port_ref {
-                    let local_port: std::cell::Ref<rsmad::ibnetdisc::Port> = RefCell::borrow(p);
+                    let local_port: std::cell::Ref<rsmad::ibnetdisc::port::Port> = RefCell::borrow(p);
                     println!("LocalPort: {:?}", local_port);
 
                     if let Some(rprp) = &local_port.remote_port {
-                        let r: Option<Rc<RefCell<rsmad::ibnetdisc::Port>>> = rprp.upgrade();
+                        let r: Option<Rc<RefCell<rsmad::ibnetdisc::port::Port>>> = rprp.upgrade();
                         if let Some(rp) = r {
                             let rp_ref = RefCell::borrow(&rp);
                             println!("  Remote Port: {:?}", rp_ref)
@@ -181,11 +174,11 @@ mod tests {
 
         for (_i, rc_node) in fabric.nodes.iter() {
             let node = RefCell::borrow(&rc_node);
-            println!("Node: {}", node.node_desc);
+            println!("Node: {}, LID: {}, TYPE: {:?}", node.node_desc, node.lid, node.node_type);
 
             if let Some(ports) = &node.ports {
                 for rc_port in ports {
-                    let port = RefCell::borrow(&rc_port); // No mutation needed
+                    let port = RefCell::borrow(&rc_port);
 
                     print!("\t[{:0>2}] 0x{:x}", port.number, node.guid);
                     if let (Some(weak_remote_port), Some(weak_remote_node)) =
@@ -199,20 +192,62 @@ mod tests {
 
                             print!(
                                 " - [{:0>2}] LID:{} {} {:?}",
-                                rp.number, rp.base_lid, rn.node_desc, rn.node_type
+                                rp.number, rn.lid, rn.node_desc, rn.node_type
                             );
                         } else {
-                            // Handle case where remote port/node no longer exists
                             print!(" - (Remote port or node not available)");
                         }
                     } else {
                         print!(" - {} {}", port.logical_state, port.phys_state);
                     }
-                    println!(""); // Newline for each port
+                    println!("");
                 }
             }
         }
 
         rsmad::umad::umad_done();
     }
+
+    #[test]
+    fn fabric_ports_perfquery_success() {
+        rsmad::umad::umad_init();
+
+        let mut fabric = rsmad::ibnetdisc::fabric::Fabric::new("mlx5_0");
+        let r = fabric.discover();
+        match r {
+            Ok(_) => {
+                println!("Discovery completed successfully");
+            }
+            Err(err) => {
+                println!("Discovery failed: {}", err);
+            }
+        }
+
+        //LEAF02 Port 28
+        if let Some(l2_rc) = fabric.nodes.get(&18188380844304618560) {
+            let l2_rc = RefCell::borrow(&l2_rc);
+
+            if let Some(ports) = &l2_rc.ports {
+
+                for i in 0..ports.len() {
+                    let pctr_result = fabric.get_port_perfcounter((18188380844304618560, i.try_into().unwrap()));
+                    if let Ok(mut pctr) = pctr_result {
+                        pctr.set_wait(100);
+                        let r = pctr.by_ref().take(2);
+                        for (m , p) in r.enumerate() {
+                            println!("{} {:?} {:?}",
+                            i,
+                            p.counters.get("rcv_pkts"),
+                            p.counters.get("xmt_pkts")
+                        );
+                        }
+                    }
+                }
+            }
+        }
+
+        rsmad::umad::umad_done();
+    }
+
+
 }

@@ -32,9 +32,10 @@ mod tests {
     fn ibmad_send_dr_mad_node_desc_success() {
         rsmad::umad::umad_init();
 
-        let mgmt_classes = [ rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_DIRECT_CLASS, 
-                             rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_CLASS, 
-                             rsmad::ibmad::sys::MAD_CLASSES_IB_SA_CLASS,
+        let mgmt_classes = [ 
+                            rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_DIRECT_CLASS, 
+                            rsmad::ibmad::sys::MAD_CLASSES_IB_SMI_CLASS, 
+                            rsmad::ibmad::sys::MAD_CLASSES_IB_SA_CLASS,
                             ];
 
         let ca_names = rsmad::umad::umad_list_devices().unwrap();
