@@ -100,14 +100,17 @@ impl Fabric {
             return Err(FabricError::DiscoveryError);
         }
 
-        let nd_fabric = unsafe { Box::from_raw(nd_fabric_ptr) };
+        let nd_fabric: Box<_> = unsafe { Box::from_raw(nd_fabric_ptr) };
 
         let r = self.add_nodes(&nd_fabric);
         if let Err(_) = r {
             return Err(FabricError::DiscoveryError);
         }
 
-        unsafe { sys::ibnd_destroy_fabric(Box::into_raw(nd_fabric)) };
+        let nd_fabric_ptr = Box::into_raw(nd_fabric);
+        unsafe { sys::ibnd_destroy_fabric(nd_fabric_ptr) };
+
+        //let nd_fabric: Box<_> = unsafe { Box::from_raw(nd_fabric_ptr) };
 
         return Ok(());
     }

@@ -4,7 +4,7 @@ use crate::ibmad::sys::{
     MAD_FIELDS_IB_NODE_VENDORID_F, 
     MAD_NODE_TYPE_IB_NODE_CA, 
     MAD_NODE_TYPE_IB_NODE_ROUTER,
-     MAD_NODE_TYPE_IB_NODE_SWITCH
+    MAD_NODE_TYPE_IB_NODE_SWITCH
 };
 use std::{cell::RefCell, ffi::{c_void, CStr}, rc::Rc, slice};
 use super::{fabric::{Fabric, FabricError}, port::Port, sys::{self, ibnd_node}};

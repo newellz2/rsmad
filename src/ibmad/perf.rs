@@ -3,23 +3,23 @@ use super::enums::MadFields;
 use crate::ibmad;
 use std::{collections::HashMap, ffi::c_void};
 
-const PERF_COUNTERS_FIELDS: [(i32, &str); 29] = [
+const PERF_COUNTERS_FIELDS: [(i32, &str); 28] = [
     (MadFields::IBPcExtXmtBytes_F as i32, "xmt_bytes"),
     (MadFields::IBPcExtRcvBytes_F as i32, "rcv_bytes"),
-    (MadFields::IBPcExtXmtPkts_F as i32, "xmt_pkts"),
-    (MadFields::IBPcExtRcvPkts_F as i32, "rcv_pkts"),
+    (MadFields::IBPcExtXmtPkts_F as i32,  "xmt_pkts"),
+    (MadFields::IBPcExtRcvPkts_F as i32,  "rcv_pkts"),
     (MadFields::IBPcExtXmtUPkts_F as i32, "xmt_upkts"),
     (MadFields::IBPcExtRcvUPkts_F as i32, "rcv_upkts"),
     (MadFields::IBPcExtXmtMPkts_F as i32, "xmt_mpkts"),
     (MadFields::IBPcExtRcvMPkts_F as i32, "rcv_mpkts"),
-    (MadFields::IBPcExtErrSym_F as i32, "symbol_errors"),
+    (MadFields::IBPcExtErrSym_F as i32,   "symbol_errors"),
     (MadFields::IBPcExtLinkRecovers_F as i32, "link_recovers"),
     (MadFields::IBPcExtLinkDowned_F as i32, "link_downed"),
     (MadFields::IBPcExtErrRcv_F as i32, "rcv_errors"),
     (MadFields::IBPcExtErrPhysRcv_F as i32, "phys_rcv_errors"),
     (MadFields::IBPcExtErrSwitchRel_F as i32, "switch_rel_errors"),
     (MadFields::IBPcExtXmtDiscards_F as i32, "xmt_discards"),
-    (MadFields::IBPcXmtDiscLast_F as i32, "xmit_discard_last"),
+    (MadFields::IBPcXmtDiscLast_F as i32, "xmt_discard_last"),
     (MadFields::IBPcRcvLocalPhyErr_F as i32,"rcv_local_phy_errors"),
     (MadFields::IBPcRcvMalformedPktErr_F as i32,"rcv_malformed_pkt_errors"),
     (MadFields::IBPcRcvBufOvrErr_F as i32,"rcv_buffer_overrun_errors"),
@@ -27,12 +27,11 @@ const PERF_COUNTERS_FIELDS: [(i32, &str); 29] = [
     (MadFields::IBPcRcvVLMapErr_F as i32, "rcv_vl_map_errors"),
     (MadFields::IBPcRcvLoopingErr_F as i32, "rcv_looping_errors"),
     (MadFields::IBPcExtErrXmtConstr_F as i32,"xmt_constraint_errors"),
-    (MadFields::IBPcExtErrRcvConstr_F as i32,"rcv_constrain_errors"),
+    (MadFields::IBPcExtErrRcvConstr_F as i32,"rcv_constraint_errors"),
     (MadFields::IBPcExtErrExcessOvr_F as i32,"excess_overrun_errors"),
     (MadFields::IBPcExtVL15Dropped as i32, "vl15dropped"),
     (MadFields::IBPcExtXmitWait_F as i32, "xmit_waits"),
     (MadFields::IBPcExtQP1Drop_F as i32, "qp1_drops"),
-    (MadFields::IBPcRcvDLIDMapErr_F as i32, "rcv_dlid_map_errors"),
 ];
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -105,7 +104,6 @@ impl Sub for ExtPerfCounters {
             } else {
                 value 
             };
-
 
             output.counters.insert(name.clone(), delta);
             

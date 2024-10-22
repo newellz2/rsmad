@@ -126,6 +126,14 @@ pub fn mad_rpc_open_port(device_name: &str, mgmt_classes: &[u32]) -> Result<IBMa
 
 }
 
+
+pub fn mad_rpc_close_port(ibmad_port: &mut IBMadPort) -> Result<(), IBMadError> {
+
+    unsafe { ibmad::sys::mad_rpc_close_port(ibmad_port.port) };
+    Ok(())
+
+}
+
 pub fn send_dr_node_info_mad(port: &IBMadPort, path: &str, timeout: u32) -> Result<NodeInfo, IBSmpError> {
 
     let drpath = Box::new(ib_dr_path_t{
